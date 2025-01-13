@@ -20,11 +20,6 @@ class CustomLoss(nn.Module):
         loss = self.beta * fuel_mix_loss + (1 - self.beta) / 2 * (internal_loss + external_loss)
         return loss
 
-
-import torch
-import torch.nn as nn
-
-
 class TransformerWithMLP(nn.Module):
     def __init__(self, transformer, mlp):
         """
@@ -38,37 +33,23 @@ class TransformerWithMLP(nn.Module):
         self.transformer = transformer
         self.mlp = mlp
 
-    def forward(self, x):
+    def forward(self, src, tgt):
         """
         Forward pass through the combined model.
 
         Args:
-            x (torch.Tensor): Input time-series data of shape (batch_size, seq_length, input_dim).
+            src (torch.Tensor): Source input for the transformer of shape (batch, src_seq_len, input_dim).
+            tgt (torch.Tensor): Target input for the transformer of shape (batch, tgt_seq_len, input_dim).
 
         Returns:
-            torch.Tensor: Predicted internal and external health impacts of shape (batch_size, seq_length, 2).
+            torch.Tensor: Final output from the MLP of shape (batch, seq_len, output_dim).
         """
         # Pass through the Transformer to predict fuel mix
-        transformer_output = self.transformer(x)  # Shape: (batch_size, seq_length, input_dim)
+        transformer_output = self.transformer(src, tgt)  # Shape: (batch_size, seq_length, input_dim)
 
         # Pass the transformer's output through the MLP for health impact prediction
         mlp_output = self.mlp(transformer_output)  # Shape: (batch_size, seq_length, 2)
 
-        return mlp_output
+        return transformer_output, mlp_output
 
 
-# # Example usage:
-# # Define transformer and MLP instances
-# transformer = TimeSeriesTransformer(input_dim=5, embed_dim=54,
-#                                     num_heads=4)  # Replace with your transformer implementation
-# mlp = HealthImpactMLP(input_dim=5, hidden_dim=128, output_dim=2)
-#
-# # Combine transformer and MLP into a single model
-# combined_model = TransformerWithMLP(transformer, mlp)
-#
-# # Dummy input for testing
-# x = torch.randn(32, 24, 5)  # Example input: (batch_size=32, seq_length=24, input_dim=5)
-#
-# # Forward pass
-# output = combined_model(x)  # Output: (batch_size=32, seq_length=24, 2)
-# print(output.shape)  # Should print torch.Size([32, 24, 2])

@@ -1,7 +1,7 @@
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
-from models.fuel_mix_predictor import TimeSeriesTransformer, preprocess_data
+from models.fuel_mix_predictor import TimeSeriesTransformer
 from models.dispersion_dnn import HealthImpactMLP
 from pipeline_and_loss import TransformerWithMLP, CustomLoss
 
@@ -10,7 +10,7 @@ from pipeline_and_loss import TransformerWithMLP, CustomLoss
 # ===============================
 def load_and_preprocess_data(file_path):
     """Load and preprocess the dataset."""
-    df = pd.read_csv(file_path, delimiter='\t')
+    df = pd.read_csv(file_path)
 
     # Convert percentages to float
     percentage_cols = [
@@ -48,7 +48,7 @@ class TimeSeriesDataset(Dataset):
 # ===============================
 def initialize_model():
     """Initialize the Transformer and MLP models and combine them."""
-    transformer = TimeSeriesTransformer(input_dim=5, embed_dim=54, num_heads=4)
+    transformer = TimeSeriesTransformer(input_dim=5, embed_dim=64, num_heads=4)
     mlp = HealthImpactMLP(input_dim=5, hidden_dim=128, output_dim=2)
     combined_model = TransformerWithMLP(transformer, mlp)
     return combined_model
@@ -68,11 +68,11 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs):
             health_targets = targets[:, :, 5:]  # Assuming the next 2 columns are health cost targets
 
             # Forward pass
-            health_pred = model(src, fuel_mix_target)
+            fuel_mix_pred, health_pred = model(src, fuel_mix_target)
 
             # Compute loss
             loss = loss_fn(
-                fuel_mix_pred=fuel_mix_target,
+                fuel_mix_pred=fuel_mix_pred,
                 fuel_mix_target=fuel_mix_target,
                 health_pred=health_pred,
                 health_internal_target=health_targets[:, :, 0],
@@ -106,12 +106,15 @@ def evaluate_model(model, dataloader, loss_fn):
 # ===============================
 def main():
     # Configuration
-    file_path = "data.csv"
-    input_features = [
+    file_path = "./CISO_dataset.csv"
+    fulemix_features = [
         "Coal_percentage", "Natural_Gas_percentage",
         "Oil_percentage", "Nuclear_percentage", "Renewable_percentage"
     ]
-    target_features = ["internal_health_cost", "external_health_cost"]
+    # target_features = ["internal_health_cost", "external_health_cost"]
+    health_features = ["internal_health_cost", "external_health_cost"]
+    total_features = ["Coal_percentage", "Natural_Gas_percentage", "Oil_percentage", "Nuclear_percentage", "Renewable_percentage",
+                      "internal_health_cost", "external_health_cost"]
     input_steps = 24
     output_steps = 24
     batch_size = 32
@@ -123,7 +126,7 @@ def main():
     data = load_and_preprocess_data(file_path)
 
     # Create dataset and dataloaders
-    dataset = TimeSeriesDataset(data, input_features, target_features, input_steps, output_steps)
+    dataset = TimeSeriesDataset(data, fulemix_features, total_features, input_steps, output_steps)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
@@ -131,14 +134,15 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # Initialize model, optimizer, and loss function
-    model = initialize_model(input_dim=len(input_features), embed_dim=54, num_heads=4, mlp_hidden_dim=128,
-                             output_dim=len(target_features))
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # model = initialize_model(input_dim=len(input_features), embed_dim=54, num_heads=4, mlp_hidden_dim=128,
+    #                          output_dim=len(target_features))
+    model = initialize_model()
     loss_fn = CustomLoss(beta=beta)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
     # Train the model
     print("Starting training...")
-    train_model(model, train_loader, optimizer, loss_fn, num_epochs)
+    train_model(model, train_loader, loss_fn, optimizer, num_epochs)
 
     # Evaluate the model
     print("Evaluating the model...")

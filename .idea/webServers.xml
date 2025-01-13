@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="1090127e-2573-44da-b253-1a47677b6676" name="hpcc">
+        <fileTransfer accessType="SFTP" host="cluster.hpcc.ucr.edu" port="22" sshConfigId="ec8b9861-785c-4b49-b038-c9af6fc572ab" sshConfig="hpcc" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
