@@ -18,7 +18,7 @@ class CustomLoss(nn.Module):
 
         # Combined loss
         loss = self.beta * fuel_mix_loss + (1 - self.beta) / 2 * (internal_loss + external_loss)
-        return loss
+        return loss, fuel_mix_loss, internal_loss, external_loss
 
 class TransformerWithMLP(nn.Module):
     def __init__(self, transformer, mlp):

@@ -4,6 +4,7 @@ from torch.utils.data import Dataset, DataLoader
 from models.fuel_mix_predictor import TimeSeriesTransformer
 from models.dispersion_dnn import HealthImpactMLP
 from pipeline_and_loss import TransformerWithMLP, CustomLoss
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ===============================
 # Data Preparation
@@ -21,7 +22,13 @@ def load_and_preprocess_data(file_path):
         df[col] = df[col].str.rstrip('%').astype(float) / 100.0
 
     # Normalize features
-    df[percentage_cols] = (df[percentage_cols] - df[percentage_cols].mean()) / df[percentage_cols].std()
+    # Normalize features
+    for col in percentage_cols:
+        if (df[col] == 0).all():  # Check if all values in the column are 0
+            df[col] = 0  # Set the entire column to 0
+        else:
+            df[col] = (df[col] - df[col].mean()) / df[col].std()
+    # df[percentage_cols] = (df[percentage_cols] - df[percentage_cols].mean()) / df[percentage_cols].std()
 
     return df
 
@@ -61,9 +68,14 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs):
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0.0
+        total_fuel_mix_loss = 0.0
+        total_internal_loss = 0.0
+        total_external_loss = 0.0
 
         for batch in dataloader:
             src, targets = batch
+            src = src.to(device)
+            targets = targets.to(device)
             fuel_mix_target = targets[:, :, :5]  # Assuming the first 5 columns are fuel mix targets
             health_targets = targets[:, :, 5:]  # Assuming the next 2 columns are health cost targets
 
@@ -71,7 +83,7 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs):
             fuel_mix_pred, health_pred = model(src, fuel_mix_target)
 
             # Compute loss
-            loss = loss_fn(
+            loss, fuel_mix_loss, internal_loss, external_loss = loss_fn(
                 fuel_mix_pred=fuel_mix_pred,
                 fuel_mix_target=fuel_mix_target,
                 health_pred=health_pred,
@@ -85,42 +97,77 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs):
             optimizer.step()
 
             total_loss += loss.item()
+            # other losses
+            total_fuel_mix_loss += fuel_mix_loss.item()
+            total_internal_loss += internal_loss.item()
+            total_external_loss += external_loss.item()
 
-        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss / len(dataloader):.4f}")
+        if (epoch + 1) % 5 == 0 or epoch == num_epochs - 1:
+            formatted_output = (
+                f"Epoch {epoch + 1}/{num_epochs}\n"
+                f"  - Loss: {total_loss / len(dataloader):.4f}\n"
+                f"  - Fuel Mix Loss: {total_fuel_mix_loss / len(dataloader):.4f}\n"
+                f"  - Internal Health Loss: {total_internal_loss / len(dataloader):.4f}\n"
+                f"  - External Health Loss: {total_external_loss / len(dataloader):.4f}"
+            )
+            print(formatted_output)
 
 # === Evaluation Function ===
 def evaluate_model(model, dataloader, loss_fn):
     model.eval()
     total_loss = 0
+    total_fuel_mix_loss = 0.0
+    total_internal_loss = 0.0
+    total_external_loss = 0.0
     with torch.no_grad():
         for x_batch, y_batch in dataloader:
-            predictions = model(x_batch)
-            loss = loss_fn(predictions, y_batch)
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            fuel_mix_target = y_batch[:, :, :5]  # Assuming the first 5 columns are fuel mix targets
+            health_targets = y_batch[:, :, 5:]  # Assuming the next 2 columns are health cost targets
+            fuel_mix_pred, health_pred = model(x_batch, fuel_mix_target)
+            loss, fuel_mix_loss, internal_loss, external_loss = loss_fn(
+                fuel_mix_pred=fuel_mix_pred,
+                fuel_mix_target=fuel_mix_target,
+                health_pred=health_pred,
+                health_internal_target=health_targets[:, :, 0],
+                health_external_target=health_targets[:, :, 1]
+            )
             total_loss += loss.item()
-    avg_loss = total_loss / len(dataloader)
-    print(f"Evaluation Loss: {avg_loss:.4f}")
-    return avg_loss
+            # other losses
+            total_fuel_mix_loss += fuel_mix_loss.item()
+            total_internal_loss += internal_loss.item()
+            total_external_loss += external_loss.item()
+
+    # avg_loss = total_loss / len(dataloader)
+
+    print(f"Evaluation Loss: {total_loss / len(dataloader):.4f}\n"
+          f"Fuel Mix Loss: {total_fuel_mix_loss / len(dataloader):.4f}\n"
+          f"Internal Health Loss: {total_internal_loss / len(dataloader):.4f}\n"
+          f"External Health Loss: {total_external_loss / len(dataloader):.4f}"
+          )
+    # return avg_loss
 
 # ===============================
 # Main Execution
 # ===============================
 def main():
     # Configuration
-    file_path = "./CISO_dataset.csv"
+    file_path = "./ERCO_dataset.csv"
     fulemix_features = [
         "Coal_percentage", "Natural_Gas_percentage",
         "Oil_percentage", "Nuclear_percentage", "Renewable_percentage"
     ]
     # target_features = ["internal_health_cost", "external_health_cost"]
-    health_features = ["internal_health_cost", "external_health_cost"]
+    # health_features = ["internal_health_cost", "external_health_cost"]
     total_features = ["Coal_percentage", "Natural_Gas_percentage", "Oil_percentage", "Nuclear_percentage", "Renewable_percentage",
                       "internal_health_cost", "external_health_cost"]
     input_steps = 24
     output_steps = 24
     batch_size = 32
-    num_epochs = 50
+    num_epochs = 100
     learning_rate = 0.001
-    beta = 0.2
+    beta = 1.0
 
     # Load and preprocess data
     data = load_and_preprocess_data(file_path)
@@ -133,16 +180,20 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    # Initialize model, optimizer, and loss function
-    # model = initialize_model(input_dim=len(input_features), embed_dim=54, num_heads=4, mlp_hidden_dim=128,
-    #                          output_dim=len(target_features))
-    model = initialize_model()
+
+    model = initialize_model().to(device)
     loss_fn = CustomLoss(beta=beta)
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-    # Train the model
-    print("Starting training...")
+    # # Train the model
+    # print("Starting training...")
     train_model(model, train_loader, loss_fn, optimizer, num_epochs)
+
+    path = "./trained_models/ERCO_T24_Beta1.0_Epoch100.pth"
+    # torch.save(model.state_dict(), path)
+
+    # load model
+    model.load_state_dict(torch.load(path))
 
     # Evaluate the model
     print("Evaluating the model...")
