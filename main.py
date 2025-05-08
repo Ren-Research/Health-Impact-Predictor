@@ -1,9 +1,11 @@
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
-from models.fuel_mix_predictor import TimeSeriesTransformer
+import os
+from models.fuel_mix_predictor import TimeSeriesTransformer, TimeSeriesLSTM
 from models.dispersion_dnn import HealthImpactMLP
 from pipeline_and_loss import TransformerWithMLP, CustomLoss
+import argparse
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ===============================
@@ -53,11 +55,14 @@ class TimeSeriesDataset(Dataset):
 # ===============================
 # Model Initialization
 # ===============================
-def initialize_model():
+def initialize_model(model_type):
     """Initialize the Transformer and MLP models and combine them."""
-    transformer = TimeSeriesTransformer(input_dim=5, embed_dim=64, num_heads=4)
+    if model_type == "transformer":
+        fuel_model = TimeSeriesTransformer(input_dim=5, embed_dim=64, num_heads=4)
+    else:
+        fuel_model = TimeSeriesLSTM(input_dim=5, embed_dim=64, dropout=0.1)
     mlp = HealthImpactMLP(input_dim=5, hidden_dim=128, output_dim=2)
-    combined_model = TransformerWithMLP(transformer, mlp)
+    combined_model = TransformerWithMLP(fuel_model, mlp)
     return combined_model
 
 # ===============================
@@ -151,9 +156,10 @@ def evaluate_model(model, dataloader, loss_fn):
 # ===============================
 # Main Execution
 # ===============================
-def main():
+def main(args):
     # Configuration
-    file_path = "./ERCO_dataset.csv"
+    # file_path = "./TVA_dataset.csv"
+    file_path = os.path.join(".", f"{args.state}_dataset.csv")
     fulemix_features = [
         "Coal_percentage", "Natural_Gas_percentage",
         "Oil_percentage", "Nuclear_percentage", "Renewable_percentage"
@@ -162,12 +168,12 @@ def main():
     # health_features = ["internal_health_cost", "external_health_cost"]
     total_features = ["Coal_percentage", "Natural_Gas_percentage", "Oil_percentage", "Nuclear_percentage", "Renewable_percentage",
                       "internal_health_cost", "external_health_cost"]
-    input_steps = 24
-    output_steps = 24
+    input_steps = args.T
+    output_steps = args.T
     batch_size = 32
-    num_epochs = 100
+    num_epochs = 50
     learning_rate = 0.001
-    beta = 1.0
+    beta = args.beta
 
     # Load and preprocess data
     data = load_and_preprocess_data(file_path)
@@ -181,23 +187,33 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 
-    model = initialize_model().to(device)
+    model = initialize_model(args.model).to(device)
     loss_fn = CustomLoss(beta=beta)
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
     # # Train the model
-    # print("Starting training...")
+    print("Starting training...")
     train_model(model, train_loader, loss_fn, optimizer, num_epochs)
 
-    path = "./trained_models/ERCO_T24_Beta1.0_Epoch100.pth"
+    # path = "./trained_models/CISO_T72_Beta0.9_Epoch50_LSTM.pth"
     # torch.save(model.state_dict(), path)
-
-    # load model
-    model.load_state_dict(torch.load(path))
+    # #
+    # # # load model
+    # model.load_state_dict(torch.load(path))
 
     # Evaluate the model
     print("Evaluating the model...")
     evaluate_model(model, val_loader, loss_fn)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="transformer", choices=["transformer", "lstm"],
+                        help="Model type to use: 'transformer' or 'lstm'")
+    parser.add_argument("--T", type=int, default=24, choices=[24, 72],
+                        help="Prediction Time Step")
+    parser.add_argument("--beta", type=float, default=0.0,
+                        help="weight of fuel mix predictor")
+    parser.add_argument("--state", type=str, default="CISO",
+                        help="weight of fuel mix predictor")
+    args = parser.parse_args()
+    main(args)
