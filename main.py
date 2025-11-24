@@ -159,7 +159,7 @@ def evaluate_model(model, dataloader, loss_fn):
 def main(args):
     # Configuration
     # file_path = "./TVA_dataset.csv"
-    file_path = os.path.join(".", f"{args.state}_dataset.csv")
+    file_path = os.path.join("data", f"{args.state}_dataset.csv")
     fulemix_features = [
         "Coal_percentage", "Natural_Gas_percentage",
         "Oil_percentage", "Nuclear_percentage", "Renewable_percentage"
@@ -181,10 +181,10 @@ def main(args):
     # Create dataset and dataloaders
     dataset = TimeSeriesDataset(data, fulemix_features, total_features, input_steps, output_steps)
     train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
     model = initialize_model(args.model).to(device)
@@ -203,7 +203,7 @@ def main(args):
 
     # Evaluate the model
     print("Evaluating the model...")
-    evaluate_model(model, val_loader, loss_fn)
+    evaluate_model(model, test_loader, loss_fn)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -211,7 +211,7 @@ if __name__ == "__main__":
                         help="Model type to use: 'transformer' or 'lstm'")
     parser.add_argument("--T", type=int, default=24, choices=[24, 72],
                         help="Prediction Time Step")
-    parser.add_argument("--beta", type=float, default=0.0,
+    parser.add_argument("--beta", type=float, default=0.8,
                         help="weight of fuel mix predictor")
     parser.add_argument("--state", type=str, default="CISO",
                         help="weight of fuel mix predictor")
