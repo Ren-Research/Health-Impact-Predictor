@@ -2,9 +2,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NeurIPS 2025](https://img.shields.io/badge/NeurIPS-2025-blue)](https://neurips.cc/)
 
-This repository contains the official implementation for the paper [Predicting Public Health Impacts of Electricity Usage](https://github.com/anonymous)
+This repository contains the official implementation for the paper [Predicting Public Health Impacts of Electricity Usage](https://openreview.net/forum?id=0hzs3dCqFs)
 
 **Authors:** Yejia Liu* (UC Riverside), Zhifeng Wu* (UC Riverside), Pengfei Li (RIT), and Shaolei Ren (UC Riverside)
+
 _* Equal contribution_
 
 **Published at:** The Thirty-Ninth Annual Conference on Neural Information Processing Systems (NeurIPS 2025) Workshop on Socially Responsible and Trustworthy Foundation Models (ResponsibleFM).
@@ -81,7 +82,7 @@ python main.py --model lstm --T 24 --beta 0.8 --state PJM
 ## Citation
 If you find this work useful for your research, please cite:
 ```bibtex
-[https://arXiv.com]
+https://arxiv.org/abs/25xx.xxxxx
 ```
 
 ## License
