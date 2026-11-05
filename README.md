@@ -82,7 +82,7 @@ python main.py --model lstm --T 24 --beta 0.8 --state PJM
 ## Citation
 If you find this work useful for your research, please cite:
 ```bibtex
-https://arxiv.org/abs/25xx.xxxxx
+https://arxiv.org/abs/2511.22031
 ```
 
 ## License
