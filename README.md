@@ -2,7 +2,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NeurIPS 2025](https://img.shields.io/badge/NeurIPS-2025-blue)](https://neurips.cc/)
 
-This repository contains the official implementation for the paper [Predicting Public Health Impacts of Electricity Usage](https://openreview.net/forum?id=0hzs3dCqFs)
+This repository contains the official implementation for the paper [Predicting Public Health Impacts of Electricity Usage](https://arxiv.org/abs/2511.22031)
 
 **Authors:** Yejia Liu* (UC Riverside), Zhifeng Wu* (UC Riverside), Pengfei Li (RIT), and Shaolei Ren (UC Riverside)
 
