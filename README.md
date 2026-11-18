@@ -10,7 +10,7 @@ _* Equal contribution_
 
 **Published at:** The Thirty-Ninth Annual Conference on Neural Information Processing Systems (NeurIPS 2025) Workshop on Socially Responsible and Trustworthy Foundation Models (ResponsibleFM).
 
-![System Architecture](system-fig.jpg)
+![System Architecture](system-fig.png)
 
 -----------------------------
 ## Table of Contents
